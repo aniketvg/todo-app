@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>To‑Do List — Lightweight & Fast</title>
+  <style>
+    :root{
+      --bg:#0f172a;      /* slate-900 */
+      --card:#111827;    /* gray-900 */
+      --muted:#94a3b8;   /* slate-400 */
+      --text:#e5e7eb;    /* gray-200 */
+      --accent:#60a5fa;  /* blue-400 */
+      --accent2:#34d399; /* green-400 */
+      --danger:#f87171;  /* red-400 */
+      --warn:#fbbf24;    /* amber-400 */
+      --border:#1f2937;  /* gray-800 */
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,"Helvetica Neue",Arial;
+      background:linear-gradient(180deg, #0b1224, #0f172a);
+      color:var(--text);
+      min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    .wrap{
+      width:100%; max-width:920px; margin:auto;
+    }
+    .app{
+      background:rgba(17,24,39,.85); backdrop-filter: blur(6px);
+      border:1px solid var(--border);
+      border-radius:20px; padding:20px; box-shadow:0 10px 40px rgba(0,0,0,.45);
+    }
+    .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center}
+    .title{
+      display:flex; align-items:center; gap:10px; margin:0 0 14px 0;
+      font-weight:800; letter-spacing:.2px;
+    }
+    .title .badge{font-size:12px; background:#0b1327; border:1px solid var(--border); padding:4px 8px; border-radius:999px; color:var(--muted)}
+    .controls{
+      margin:12px 0 16px; display:flex; gap:8px; flex-wrap:wrap;
+    }
+    input[type=text], input[type=date], select{
+      background:#0b1327; border:1px solid var(--border); color:var(--text);
+      padding:10px 12px; border-radius:12px; outline:none; min-height:40px;
+    }
+    input[type=text]::placeholder{color:#6b7280}
+    button{
+      border:1px solid var(--border); background:#0c1530; color:var(--text);
+      padding:10px 14px; border-radius:12px; cursor:pointer; transition:.15s transform, .2s background;
+    }
+    button:hover{transform:translateY(-1px); background:#0f1b3b}
+    .btn-primary{border-color:#1e3a8a; background:#0b1b47}
+    .btn-danger{border-color:#7f1d1d; background:#2b0f12}
+    .btn-ghost{background:transparent}
+    .chip{padding:6px 10px; border:1px solid var(--border); border-radius:999px; color:var(--muted); cursor:pointer}
+    .chip.active{border-color:#1d4ed8; color:#93c5fd; box-shadow:0 0 0 1px #1d4ed8 inset}
+    .list{display:grid; gap:8px; margin-top:12px}
+    .todo{
+      display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center;
+      border:1px solid var(--border); background:#0b1327; border-radius:16px; padding:12px;
+      transition:.15s transform, .2s border-color;
+    }
+    .todo:hover{transform:translateY(-1px); border-color:#253043}
+    .todo.dragging{opacity:.6; border-style:dashed}
+    .todo .meta{display:flex; gap:8px; flex-wrap:wrap; font-size:12px; color:var(--muted)}
+    .todo .meta .tag{border:1px solid var(--border); padding:2px 8px; border-radius:999px}
+    .todo .name{font-weight:600}
+    .done .name{ text-decoration: line-through; color:#9ca3af }
+    .actions{display:flex; gap:6px}
+    .small{font-size:12px; color:var(--muted)}
+    .footer{display:flex; justify-content:space-between; align-items:center; margin-top:14px; gap:12px; flex-wrap:wrap}
+    .empty{padding:24px; text-align:center; color:var(--muted); border:1px dashed var(--border); border-radius:16px}
+    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,"Liberation Mono","Courier New",monospace; font-size:12px; border:1px solid var(--border); background:#0a1122; padding:2px 6px; border-radius:6px; color:#93c5fd}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="app">
+      <h1 class="title">✅ To‑Do List <span class="badge">Offline • LocalStorage</span></h1>
+
+      <div class="controls row">
+        <input id="task" type="text" placeholder="Add a task (press Enter)"/>
+        <select id="priority">
+          <option value="normal" selected>Priority: Normal</option>
+          <option value="high">Priority: High</option>
+          <option value="low">Priority: Low</option>
+        </select>
+        <input id="due" type="date"/>
+        <button id="add" class="btn-primary">Add</button>
+        <input id="search" type="text" placeholder="Search… (⌘/Ctrl + K)"/>
+        <div class="row">
+          <span class="chip active" data-filter="all">All</span>
+          <span class="chip" data-filter="active">Active</span>
+          <span class="chip" data-filter="done">Completed</span>
+          <span class="chip" data-filter="today">Due Today</span>
+          <span class="chip" data-filter="overdue">Overdue</span>
+        </div>
+      </div>
+
+      <div id="list" class="list"></div>
+      <div id="empty" class="empty" style="display:none">No tasks yet. Add one above!</div>
+
+      <div class="footer">
+        <div class="small">Tip: Drag to reorder • Double‑click a task to quick‑edit • <span class="kbd">Ctrl/Cmd + K</span> to focus search</div>
+        <div class="row">
+          <button id="clearDone" class="btn-ghost">Clear completed</button>
+          <button id="export" title="Download your tasks as JSON">Export</button>
+          <button id="importBtn">Import</button>
+          <input id="importFile" type="file" accept="application/json" style="display:none">
+          <button id="purge" class="btn-danger">Purge all</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const $ = (sel, root=document)=>root.querySelector(sel);
+  const $$ = (sel, root=document)=>Array.from(root.querySelectorAll(sel));
+  const uid = ()=>crypto.randomUUID ? crypto.randomUUID() : (Date.now()+"_"+Math.random().toString(16).slice(2));
+
+  const els = {
+    task: $("#task"),
+    priority: $("#priority"),
+    due: $("#due"),
+    add: $("#add"),
+    list: $("#list"),
+    empty: $("#empty"),
+    chips: $$(".chip"),
+    clearDone: $("#clearDone"),
+    purge: $("#purge"),
+    search: $("#search"),
+    exportBtn: $("#export"),
+    importBtn: $("#importBtn"),
+    importFile: $("#importFile"),
+  };
+
+  let state = {
+    items: load(),
+    filter: "all",
+    query: "",
+  };
+
+  // Initial render
+  render();
+
+  // Events
+  els.add.addEventListener("click", addFromInputs);
+  els.task.addEventListener("keydown", (e)=>{ if(e.key==="Enter") addFromInputs(); });
+  els.search.addEventListener("input", (e)=>{ state.query = e.target.value.trim().toLowerCase(); render(); });
+  document.addEventListener("keydown", e=>{
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k"){
+      e.preventDefault();
+      els.search.focus();
+    }
+  });
+  els.chips.forEach(ch=>ch.addEventListener("click", ()=>{
+    els.chips.forEach(c=>c.classList.remove("active"));
+    ch.classList.add("active");
+    state.filter = ch.dataset.filter;
+    render();
+  }));
+  els.clearDone.addEventListener("click", ()=>{
+    state.items = state.items.filter(i=>!i.done);
+    save(); render();
+  });
+  els.purge.addEventListener("click", ()=>{
+    if(confirm("Permanently delete ALL tasks?")){ state.items = []; save(); render(); }
+  });
+  els.exportBtn.addEventListener("click", ()=>{
+    const blob = new Blob([JSON.stringify(state.items, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "todo-backup.json"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 500);
+  });
+  els.importBtn.addEventListener("click", ()=> els.importFile.click());
+  els.importFile.addEventListener("change", async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const txt = await file.text();
+    try {
+      const data = JSON.parse(txt);
+      if(Array.isArray(data)){
+        state.items = data.map(normalizeItem);
+        save(); render();
+      } else {
+        alert("Invalid JSON format.");
+      }
+    } catch {
+      alert("Could not parse JSON.");
+    }
+    e.target.value = "";
+  });
+
+  // Core functions
+  function addFromInputs(){
+    const name = els.task.value.trim();
+    if(!name) return;
+    const item = {
+      id: uid(),
+      name,
+      done:false,
+      createdAt: Date.now(),
+      due: els.due.value || null,
+      priority: els.priority.value || "normal",
+      order: (state.items.at(-1)?.order ?? 0) + 1
+    };
+    state.items.push(item);
+    els.task.value=""; els.due.value=""; els.priority.value="normal";
+    save(); render();
+  }
+
+  function render(){
+    const filtered = filterAndSort();
+    els.list.innerHTML = "";
+    if(filtered.length === 0){
+      els.empty.style.display = "block";
+    } else {
+      els.empty.style.display = "none";
+    }
+    filtered.forEach(item => els.list.appendChild(renderItem(item)));
+
+    // Make list draggable
+    makeDraggable();
+  }
+
+  function renderItem(item){
+    const li = document.createElement("div");
+    li.className = "todo" + (item.done ? " done" : "");
+    li.setAttribute("draggable", "true");
+    li.dataset.id = item.id;
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = item.done;
+    checkbox.addEventListener("change", ()=>{
+      item.done = checkbox.checked; save(); render();
+    });
+
+    const content = document.createElement("div");
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = item.name;
+    name.title = "Double‑click to quick‑edit";
+    name.addEventListener("dblclick", ()=> quickEdit(name, item));
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    if(item.due){
+      const due = document.createElement("span");
+      due.className = "tag";
+      const today = new Date(); today.setHours(0,0,0,0);
+      const dueDate = new Date(item.due + "T00:00:00");
+      if(dueDate < today){ due.style.borderColor = "#7f1d1d"; due.style.color = "#fca5a5"; }
+      else if(+dueDate === +today){ due.style.borderColor = "#1f2937"; due.style.color = "#fbbf24"; }
+      due.textContent = "Due: " + item.due;
+      meta.appendChild(due);
+    }
+    const pri = document.createElement("span");
+    pri.className = "tag";
+    if(item.priority === "high"){ pri.style.borderColor="#1f2937"; pri.style.color="#fda4af"; }
+    if(item.priority === "low"){ pri.style.borderColor="#1f2937"; pri.style.color="#93c5fd"; }
+    pri.textContent = "Priority: " + item.priority;
+    meta.appendChild(pri);
+
+    content.appendChild(name);
+    content.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const editBtn = document.createElement("button");
+    editBtn.textContent = "Edit";
+    editBtn.addEventListener("click", ()=> openEditor(item));
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "Delete";
+    delBtn.className = "btn-danger";
+    delBtn.addEventListener("click", ()=>{
+      if(confirm("Delete this task?")){
+        state.items = state.items.filter(x=>x.id !== item.id);
+        save(); render();
+      }
+    });
+
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+
+    li.appendChild(checkbox);
+    li.appendChild(content);
+    li.appendChild(actions);
+    return li;
+  }
+
+  function quickEdit(el, item){
+    const input = document.createElement("input");
+    input.type = "text"; input.value = item.name;
+    input.style.width = "100%"; input.style.background = "transparent";
+    input.style.border = "1px dashed var(--border)"; input.style.color = "var(--text)";
+    input.style.borderRadius = "8px"; input.style.padding = "6px 8px";
+    el.replaceWith(input);
+    input.focus(); input.select();
+    const commit = ()=>{
+      const v = input.value.trim();
+      item.name = v || item.name;
+      save(); render();
+    };
+    input.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter") commit();
+      if(e.key === "Escape") render();
+    });
+    input.addEventListener("blur", commit);
+  }
+
+  function openEditor(item){
+    const name = prompt("Task", item.name);
+    if(name === null) return;
+    const due = prompt("Due date (YYYY-MM-DD) — leave blank to clear", item.due || "");
+    const pri = prompt("Priority: high | normal | low", item.priority);
+    Object.assign(item, {
+      name: name.trim() || item.name,
+      due: (due||"").trim() || null,
+      priority: ["high","normal","low"].includes((pri||"").trim()) ? pri.trim() : item.priority
+    });
+    save(); render();
+  }
+
+  function filterAndSort(){
+    const q = state.query;
+    let items = state.items.filter(i => i.name.toLowerCase().includes(q));
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    if(state.filter === "active") items = items.filter(i=>!i.done);
+    if(state.filter === "done") items = items.filter(i=>i.done);
+    if(state.filter === "today") items = items.filter(i=> i.due && +new Date(i.due) === +today);
+    if(state.filter === "overdue") items = items.filter(i=> i.due && new Date(i.due) < today);
+
+    // sort by order, then priority, then due date
+    const priRank = {high:0, normal:1, low:2};
+    items.sort((a,b)=> (a.order - b.order) || (priRank[a.priority]-priRank[b.priority]) || ((a.due||"") > (b.due||"") ? 1 : -1));
+    return items;
+  }
+
+  function save(){ localStorage.setItem("todo.items", JSON.stringify(state.items)); }
+  function load(){
+    try{
+      const raw = JSON.parse(localStorage.getItem("todo.items") || "[]");
+      return raw.map(normalizeItem);
+    }catch{ return []; }
+  }
+  function normalizeItem(x){
+    return {
+      id: x.id || uid(),
+      name: String(x.name || "").trim(),
+      done: !!x.done,
+      createdAt: Number(x.createdAt || Date.now()),
+      due: x.due || null,
+      priority: x.priority || "normal",
+      order: typeof x.order === "number" ? x.order : 0
+    };
+  }
+
+  // Drag & drop reorder
+  function makeDraggable(){
+    $$("#list .todo").forEach(el =>{
+      el.addEventListener("dragstart", ()=> el.classList.add("dragging"));
+      el.addEventListener("dragend", ()=> {
+        el.classList.remove("dragging");
+        // persist new order
+        const ids = $$("#list .todo").map(n=>n.dataset.id);
+        ids.forEach((id, idx)=>{
+          const item = state.items.find(i=>i.id===id);
+          if(item) item.order = idx;
+        });
+        save();
+      });
+    });
+    els.list.addEventListener("dragover", e=>{
+      e.preventDefault();
+      const dragging = $(".todo.dragging");
+      if(!dragging) return;
+      const siblings = $$("#list .todo:not(.dragging)");
+      let next = siblings.find(s=> e.clientY <= s.getBoundingClientRect().top + s.offsetHeight/2 );
+      els.list.insertBefore(dragging, next || null);
+    });
+  }
+})();
+</script>
+</body>
+</html>
